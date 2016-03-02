@@ -179,10 +179,58 @@ class Join(Operator):
   # This method pins pages in the buffer pool during its access.
   # We track the page ids in the block to unpin them after processing the block.
   def accessPageBlock(self, bufPool, pageIterator):
-    raise NotImplementedError
+    pinnedPages = []
+
+    M = bufPool.numPages()
+    count = 0
+
+    for (pageId, pageObj) in pageIterator:
+      tf = open("iter.txt", "a")
+      tf.write(str(pageId.pageIndex))
+      tf.close()
+      bufPool.pinPage(pageId)
+      pinnedPages.append((pageId, pageObj))
+      count += 1
+
+      try:
+        next(pageIterator)
+      except StopIteration:
+        return (iter([]), pinnedPages)
+
+      if count >= M-2 :
+        break
+    return (pageIterator, pinnedPages)
+    #raise NotImplementedError
 
   def blockNestedLoops(self):
-    raise NotImplementedError
+    lIter = iter(self.lhsPlan)
+    blockTuple = self.accessPageBlock(self.storage.bufferPool, lIter)
+    while (len(blockTuple[1]) > 0):
+      for (lPageId, lhsPage) in iter(blockTuple[1]):
+        for lTuple in lhsPage:
+          # Load the lhs once per inner loop.
+          joinExprEnv = self.loadSchema(self.lhsSchema, lTuple)
+
+          for (rPageId, rhsPage) in iter(self.rhsPlan):
+            for rTuple in rhsPage:
+              # Load the RHS tuple fields.
+              joinExprEnv.update(self.loadSchema(self.rhsSchema, rTuple))
+
+              # Evaluate the join predicate, and output if we have a match.
+              if eval(self.joinExpr, globals(), joinExprEnv):
+                outputTuple = self.joinSchema.instantiate(*[joinExprEnv[f] for f in self.joinSchema.fields])
+                self.emitOutputTuple(self.joinSchema.pack(outputTuple))
+
+          # No need to track anything but the last output page when in batch mode.
+          if self.outputPages:
+            self.outputPages = [self.outputPages[-1]]
+      for (pageId, pageObj) in blockTuple[1]:
+        self.storage.bufferPool.unpinPage(pageId)
+      blockTuple = self.accessPageBlock(self.storage.bufferPool, blockTuple[0])
+
+    # Return an iterator to the output relation
+    return self.storage.pages(self.relationId())
+    #raise NotImplementedError
 
 
   ##################################
