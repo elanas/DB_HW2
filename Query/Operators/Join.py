@@ -246,7 +246,39 @@ class Join(Operator):
   # Hash join implementation.
   #
   def hashJoin(self):
-    raise NotImplementedError
+    lRelIds = []
+    rRelIds = []
+    for (lPageId, lhsPage) in iter(self.lhsPlan):
+      for lTuple in lhsPage:
+        hashExprEnv = self.loadSchema(self.lhsSchema, lTuple)
+        tupleHash = eval(self.lhsHashFn, globals(), hashExprEnv)
+        
+        relId = "l" + str(tupleHash)
+        self.storage.createRelation(relId, self.lhsSchema)
+        self.storage.insertTuple(relId, lTuple)
+        lRelIds.append(relId[1:])
+
+    for (rPageId, rhsPage) in iter(self.rhsPlan):
+      for rTuple in rhsPage:
+        hashExprEnv = self.loadSchema(self.rhsSchema, rTuple)
+        tupleHash = eval(self.rhsHashFn, globals(), hashExprEnv)
+        
+        relId = "r" + str(tupleHash)
+        self.storage.createRelation(relId, self.rhsSchema)
+        self.storage.insertTuple(relId, rTuple)
+        rRelIds.append(relId[1:])
+
+    for lId in lRelIds:
+      if lId in rRelIds:
+        self.lhsPlan = self.storage.pages("l" + lId)
+        self.rhsPlan = self.storage.pages("r" + lId)
+        
+        if not self.joinExpr:
+          self.joinExpr = "True"
+        self.blockNestedLoops()
+
+    return self.storage.pages(self.relationId())
+     #raise NotImplementedError
 
   # Plan and statistics information
 
