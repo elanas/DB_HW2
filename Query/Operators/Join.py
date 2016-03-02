@@ -94,10 +94,29 @@ class Join(Operator):
 
   # Iterator abstraction for join operator.
   def __iter__(self):
-    raise NotImplementedError
+    self.initializeOutput()
+    self.inputFinished = False
+    if not self.pipelined:
+      self.outputIterator = self.processAllPages()
+    return self
+  #raise NotImplementedError
 
   def __next__(self):
-    raise NotImplementedError
+    if self.pipelined:
+      while not(self.inputFinished or self.isOutputPageReady()):
+        try:
+          pageId, page = next(self.inputIterator)
+          self.processInputPage(pageId, page)
+        except StopIteration:
+          self.inputFinished = True
+
+      return self.outputPage()
+
+    else:
+      return next(self.outputIterator)
+
+
+ #raise NotImplementedError
 
   # Page-at-a-time operator processing
   def processInputPage(self, pageId, page):

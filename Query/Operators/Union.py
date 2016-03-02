@@ -35,7 +35,6 @@ class Union(Operator):
   # non-pipelined cases
   def __iter__(self):
     self.initializeOutput()
-    self.inputIterator = chain(iter(self.lhsPlan), iter(self.rhsPlan))
     self.inputFinished = False
     if not self.pipelined:
       self.outputIterator = self.processAllPages()
