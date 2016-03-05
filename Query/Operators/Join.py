@@ -247,8 +247,13 @@ class Join(Operator):
         
         relId = "l" + str(tupleHash)
         self.storage.createRelation(relId, self.lhsSchema)
+        tf = open("tuple.txt", "a")
+        tf.write(str(lTuple))
+        tf.close()
         self.storage.insertTuple(relId, lTuple)
-        lRelIds.append(relId[1:])
+        
+        if str(tupleHash) not in lRelIds:
+          lRelIds.append(str(tupleHash))
 
     for (rPageId, rhsPage) in iter(self.rhsPlan):
       for rTuple in rhsPage:
@@ -258,19 +263,25 @@ class Join(Operator):
         relId = "r" + str(tupleHash)
         self.storage.createRelation(relId, self.rhsSchema)
         self.storage.insertTuple(relId, rTuple)
-        rRelIds.append(relId[1:])
 
+        if str(tupleHash) not in rRelIds:
+          rRelIds.append(str(tupleHash))
+
+    tf = open("lrelIds.txt", "w")
+    tf.write(str(lRelIds))
+    tf.close()
     for lId in lRelIds:
       if lId in rRelIds:
         self.lhsPlan = self.storage.pages("l" + lId)
         self.rhsPlan = self.storage.pages("r" + lId)
         
         if not self.joinExpr:
-          self.joinExpr = "True"
+          self.joinExpr = "True" 
+        for k in range(len(self.lhsKeySchema.fields)):
+          self.joinExpr += " and " + self.lhsKeySchema.fields[k] + " == " + self.rhsKeySchema.fields[k] 
         self.blockNestedLoops()
 
     return self.storage.pages(self.relationId())
-     #raise NotImplementedError
 
   # Plan and statistics information
 
