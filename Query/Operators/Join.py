@@ -184,29 +184,22 @@ class Join(Operator):
     M = bufPool.numPages()
     count = 0
 
-    for (pageId, pageObj) in pageIterator:
-      tf = open("iter.txt", "a")
-      tf.write(str(pageId.pageIndex))
-      tf.close()
-      bufPool.pinPage(pageId)
-      pinnedPages.append((pageId, pageObj))
-      count += 1
+    try:
+      while count < (M-2):
+        (pageId,pageObj) = next(pageIterator) 
+        bufPool.pinPage(pageId)
+        pinnedPages.append((pageId, pageObj))
+        count += 1
+    except StopIteration:
+      pass
 
-      try:
-        next(pageIterator)
-      except StopIteration:
-        return (iter([]), pinnedPages)
-
-      if count >= M-2 :
-        break
-    return (pageIterator, pinnedPages)
-    #raise NotImplementedError
+    return pinnedPages        
 
   def blockNestedLoops(self):
     lIter = iter(self.lhsPlan)
-    blockTuple = self.accessPageBlock(self.storage.bufferPool, lIter)
-    while (len(blockTuple[1]) > 0):
-      for (lPageId, lhsPage) in iter(blockTuple[1]):
+    pinnedPages = self.accessPageBlock(self.storage.bufferPool, lIter)
+    while (len(pinnedPages) > 0):
+      for (lPageId, lhsPage) in iter(pinnedPages):
         for lTuple in lhsPage:
           # Load the lhs once per inner loop.
           joinExprEnv = self.loadSchema(self.lhsSchema, lTuple)
@@ -224,13 +217,12 @@ class Join(Operator):
           # No need to track anything but the last output page when in batch mode.
           if self.outputPages:
             self.outputPages = [self.outputPages[-1]]
-      for (pageId, pageObj) in blockTuple[1]:
+      for (pageId, pageObj) in pinnedPages:
         self.storage.bufferPool.unpinPage(pageId)
-      blockTuple = self.accessPageBlock(self.storage.bufferPool, blockTuple[0])
+      pinnedPages = self.accessPageBlock(self.storage.bufferPool, lIter)
 
     # Return an iterator to the output relation
     return self.storage.pages(self.relationId())
-    #raise NotImplementedError
 
 
   ##################################
