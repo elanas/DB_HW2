@@ -59,10 +59,29 @@ class GroupBy(Operator):
 
   # Iterator abstraction for selection operator.
   def __iter__(self):
-    raise NotImplementedError
+    self.initializeOutput()
+    self.inputFinished = False
+    if not self.pipelined:
+      self.outputIterator = self.processAllPages()
+    return self
+    #raise NotImplementedError
 
   def __next__(self):
-    raise NotImplementedError
+    if self.pipelined:
+      while not(self.inputFinished or self.isOutputPageReady()):
+        try:
+          pageId, page = next(self.inputIterator)
+          self.processInputPage(pageId, page)
+        except StopIteration:
+          self.inputFinished = True
+
+      return self.outputPage()
+
+    else:
+      return next(self.outputIterator)
+
+
+    #raise NotImplementedError
 
   # Page-at-a-time operator processing
   def processInputPage(self, pageId, page):
@@ -70,7 +89,50 @@ class GroupBy(Operator):
 
   # Set-at-a-time operator processing
   def processAllPages(self):
-    raise NotImplementedError
+    schema = self.operatorType() + str(self.id())
+    fields = self.groupSchema.schema() + self.aggSchema.schema()
+    outputSchema = DBSchema(schema,fields)
+
+    relIds = []
+    for (pageId, page) in iter(self.subPlan):
+      for tpl in page:
+        group = self.groupExpr(self.subSchema.unpack(tpl))
+        key = self.groupHashFn((group, None))
+        relId = str(self.id) + "u" + str(key)
+        self.storage.createRelation(relId, self.subSchema)
+        self.storage.insertTuple(relId, tpl)
+        if relId not in relIds:
+          relIds.append(relId)
+
+    for rid in relIds:
+      groupDict = {}
+      for (pageId, page) in self.storage.pages(rid):
+        for tpl in page:
+          groupKey = self.groupExpr(self.subSchema.unpack(tpl))
+          if groupKey not in groupDict:
+            groupDict[groupKey] = []
+            for trio in self.aggExprs:
+              groupDict[groupKey].append(trio[0])
+              
+          for i in range(len(self.aggExprs)):
+            groupDict[groupKey][i] = self.aggExprs[i][1](groupDict[groupKey][i], self.subSchema.unpack(tpl))
+
+      for key in groupDict:
+        for i in range(len(self.aggExprs)):
+          groupDict[key][i] = self.aggExprs[i][2](groupDict[key][i])
+      
+      for key in groupDict:
+        outTuple = outputSchema.instantiate(key, *[f for f in groupDict[key]])
+        self.emitOutputTuple(self.outputSchema.pack(outTuple))
+    return self.storage.pages(self.relationId())
+
+
+
+
+
+
+
+    #raise NotImplementedError
 
   # Plan and statistics information
 
