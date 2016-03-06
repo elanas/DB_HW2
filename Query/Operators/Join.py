@@ -245,7 +245,7 @@ class Join(Operator):
         hashExprEnv = self.loadSchema(self.lhsSchema, lTuple)
         tupleHash = eval(self.lhsHashFn, globals(), hashExprEnv)
         
-        relId = "l" + str(tupleHash)
+        relId = str(self.id()) + "l" + str(tupleHash)
         self.storage.createRelation(relId, self.lhsSchema)
         self.storage.insertTuple(relId, lTuple)
         
@@ -257,7 +257,7 @@ class Join(Operator):
         hashExprEnv = self.loadSchema(self.rhsSchema, rTuple)
         tupleHash = eval(self.rhsHashFn, globals(), hashExprEnv)
         
-        relId = "r" + str(tupleHash)
+        relId = str(self.id()) + "r" + str(tupleHash)
         self.storage.createRelation(relId, self.rhsSchema)
         self.storage.insertTuple(relId, rTuple)
 
