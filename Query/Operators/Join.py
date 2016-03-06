@@ -272,7 +272,7 @@ class Join(Operator):
       if lId in rRelIds:
         ######DO BNLJ#######
     
-        lIter = iter(self.storage.pages("l" + lId))
+        lIter = iter(self.storage.pages(str(self.id()) + "l" + lId))
         pinnedPages = self.accessPageBlock(self.storage.bufferPool, lIter)
         while (len(pinnedPages) > 0):
           for (lPageId, lhsPage) in iter(pinnedPages):
@@ -280,7 +280,7 @@ class Join(Operator):
               # Load the lhs once per inner loop.
               joinExprEnv = self.loadSchema(self.lhsSchema, lTuple)
 
-              for (rPageId, rhsPage) in iter(self.storage.pages("r" + lId)):
+              for (rPageId, rhsPage) in iter(self.storage.pages(self.str(self.id()) + "r" + lId)):
                 for rTuple in rhsPage:
                   # Load the RHS tuple fields.
                   joinExprEnv.update(self.loadSchema(self.rhsSchema, rTuple))
