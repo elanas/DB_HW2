@@ -295,7 +295,7 @@ class Join(Operator):
               # Load the lhs once per inner loop.
               joinExprEnv = self.loadSchema(self.lhsSchema, lTuple)
 
-              for (rPageId, rhsPage) in iter(self.storage.pages(self.str(self.id()) + "r" + lId)):
+              for (rPageId, rhsPage) in iter(self.storage.pages(str(self.id()) + "r" + lId)):
                 for rTuple in rhsPage:
                   # Load the RHS tuple fields.
                   joinExprEnv.update(self.loadSchema(self.rhsSchema, rTuple))
