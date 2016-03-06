@@ -247,9 +247,6 @@ class Join(Operator):
         
         relId = "l" + str(tupleHash)
         self.storage.createRelation(relId, self.lhsSchema)
-        tf = open("tuple.txt", "a")
-        tf.write(str(lTuple))
-        tf.close()
         self.storage.insertTuple(relId, lTuple)
         
         if str(tupleHash) not in lRelIds:
@@ -267,20 +264,17 @@ class Join(Operator):
         if str(tupleHash) not in rRelIds:
           rRelIds.append(str(tupleHash))
 
-    tf = open("lrelIds.txt", "w")
-    tf.write(str(lRelIds))
-    tf.close()
+    if not self.joinExpr:
+      self.joinExpr = "True" 
+    for k in range(len(self.lhsKeySchema.fields)):
+      self.joinExpr += " and " + self.lhsKeySchema.fields[k] + " == " + self.rhsKeySchema.fields[k] 
     for lId in lRelIds:
       if lId in rRelIds:
         self.lhsPlan = self.storage.pages("l" + lId)
         self.rhsPlan = self.storage.pages("r" + lId)
         
-        if not self.joinExpr:
-          self.joinExpr = "True" 
-        for k in range(len(self.lhsKeySchema.fields)):
-          self.joinExpr += " and " + self.lhsKeySchema.fields[k] + " == " + self.rhsKeySchema.fields[k] 
         self.blockNestedLoops()
-
+        #self.nestedLoops() # problem exists even here
     return self.storage.pages(self.relationId())
 
   # Plan and statistics information
