@@ -231,7 +231,22 @@ class Join(Operator):
   #
   # TODO: test
   def indexedNestedLoops(self):
-    raise NotImplementedError
+    for (lPageId, lhsPage) in iter(self.lhsPlan):
+      for lTuple in lhsPage:
+        # Load the lhs once per inner loop.
+        joinExprEnv = self.loadSchema(self.lhsSchema, lTuple)
+        joinKey = self.lhsSchema.project(lTuple, self.lhsKeySchema)
+
+        matches = self.storage.fileMgr.lookupByIndex(self.rhsPlan.relationId(), self.indexId, joinKey)
+
+        for rTuple in matches:
+          joinExprEnv.update(self.loadSchema(self.rhsSchema, rTuple))
+          if eval(self.joinExpr, globals(), joinExprEnv):
+            outputTuple = self.joinSchema.instantiate(*[joinExprEnv[f] for f in self.joinSchema.fields])
+            self.emitOutputTuple(self.joinSchema.pack(outputTuple))
+    return self.storage.pages(self.relationId())
+ 
+    #raise NotImplementedError
 
   ##################################
   #
