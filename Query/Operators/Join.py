@@ -270,12 +270,37 @@ class Join(Operator):
       self.joinExpr += " and " + self.lhsKeySchema.fields[k] + " == " + self.rhsKeySchema.fields[k] 
     for lId in lRelIds:
       if lId in rRelIds:
-        self.lhsPlan = self.storage.pages("l" + lId)
-        self.rhsPlan = self.storage.pages("r" + lId)
-        
-        self.blockNestedLoops()
-        #self.nestedLoops() # problem exists even here
+        ######DO BNLJ#######
+    
+        lIter = iter(self.storage.pages("l" + lId))
+        pinnedPages = self.accessPageBlock(self.storage.bufferPool, lIter)
+        while (len(pinnedPages) > 0):
+          for (lPageId, lhsPage) in iter(pinnedPages):
+            for lTuple in lhsPage:
+              # Load the lhs once per inner loop.
+              joinExprEnv = self.loadSchema(self.lhsSchema, lTuple)
+
+              for (rPageId, rhsPage) in iter(self.storage.pages("r" + lId)):
+                for rTuple in rhsPage:
+                  # Load the RHS tuple fields.
+                  joinExprEnv.update(self.loadSchema(self.rhsSchema, rTuple))
+ 
+                  # Evaluate the join predicate, and output if we have a match.
+                  if eval(self.joinExpr, globals(), joinExprEnv):
+                    outputTuple = self.joinSchema.instantiate(*[joinExprEnv[f] for f in self.joinSchema.fields])
+                    self.emitOutputTuple(self.joinSchema.pack(outputTuple))
+
+              # No need to track anything but the last output page when in batch mode.
+              if self.outputPages:
+                self.outputPages = [self.outputPages[-1]]
+          for (pageId, pageObj) in pinnedPages:
+            self.storage.bufferPool.unpinPage(pageId)
+          pinnedPages = self.accessPageBlock(self.storage.bufferPool, lIter)
+
+       ######END BNLJ######
+
     return self.storage.pages(self.relationId())
+
 
   # Plan and statistics information
 
