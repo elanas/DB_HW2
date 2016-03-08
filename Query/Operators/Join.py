@@ -99,7 +99,6 @@ class Join(Operator):
     if not self.pipelined:
       self.outputIterator = self.processAllPages()
     return self
-  #raise NotImplementedError
 
   def __next__(self):
     if self.pipelined:
@@ -235,12 +234,21 @@ class Join(Operator):
       for lTuple in lhsPage:
         # Load the lhs once per inner loop.
         joinExprEnv = self.loadSchema(self.lhsSchema, lTuple)
-        joinKey = self.lhsSchema.project(lTuple, self.lhsKeySchema)
+        joinKey = self.lhsKeySchema.pack(self.lhsSchema.project(self.lhsSchema.unpack(lTuple), self.lhsKeySchema))
 
+        #matches is an iterator over tuple IDs
         matches = self.storage.fileMgr.lookupByIndex(self.rhsPlan.relationId(), self.indexId, joinKey)
 
-        for rTuple in matches:
-          joinExprEnv.update(self.loadSchema(self.rhsSchema, rTuple))
+        if not matches:
+          continue
+
+        for rTupleID in matches:
+          rFile      = self.storage.fileMgr.relationFile(self.rhsPlan.relationId())[1]
+          pId        = rTupleID.pageId
+          rpage      = rFile.bufferPool.getPage(pId)
+          rtupleData = rpage.getTuple(rTupleID)
+          #unpack rtupleData?
+          joinExprEnv.update(self.loadSchema(self.rhsSchema, rtupleData))
           if eval(self.joinExpr, globals(), joinExprEnv):
             outputTuple = self.joinSchema.instantiate(*[joinExprEnv[f] for f in self.joinSchema.fields])
             self.emitOutputTuple(self.joinSchema.pack(outputTuple))
